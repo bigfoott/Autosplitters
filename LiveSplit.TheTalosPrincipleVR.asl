@@ -282,6 +282,7 @@ init {
 	  
 	case 41984000:
 	  version = "443779 x64 VR";
+	  vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x1E34CF8));
 	  vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x1E185D0, 0x8, 0x1C8));
 	  break;
 
