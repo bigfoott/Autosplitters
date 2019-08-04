@@ -157,8 +157,13 @@ startup {
 init {
   var page = modules.First();
   var gameDir = Path.GetDirectoryName(page.FileName);
-  var index = gameDir.IndexOf("The Talos Principle");
-  var logPath = gameDir.Substring(0, index + 22) + "/Log/" + game.ProcessName + ".log";
+  var offset = 22;
+  var index = gameDir.IndexOf("The Talos Principle VR");
+  if (index == -1) {
+	index = gameDir.IndexOf("The Talos Principle");
+    offset = 19;
+  }
+  var logPath = gameDir.Substring(0, index + offset) + "/Log/" + game.ProcessName + ".log";
   vars.log("Computed log path: '" + logPath + "'");
 
   // To find the loading pointer:
