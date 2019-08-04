@@ -1,8 +1,9 @@
+state("Talos") {}
+state("Talos_Unrestricted") {}
 state("Talos_VR") {}
-state("Talos_Unrestricted_VR") {}
+
 // TODO: Splitter doesn't restart when resetting from a terminal? Confirmed, but what to do about it?
 // TODO: "Split when returning to nexus" triggered in A5? Can't reproduce, logs were non-verbose. Will be fixed if/when I change to pointers instead of logging
-// TODO: Spanish version of "USER: /eternalize" is USER: /eternizar
 
 startup {
   // Commonly used, defaults to true
@@ -40,7 +41,8 @@ startup {
 
   vars.logFilePath = Directory.GetCurrentDirectory() + "\\autosplitter_talos.log";
   vars.log = (Action<string>)((string logLine) => {
-    string time = System.DateTime.Now.ToString("dd/mm/yy hh:mm:ss:fff");
+    print(logLine);
+    string time = System.DateTime.Now.ToString("dd/MM/yy hh:mm:ss:fff");
     System.IO.File.AppendAllText(vars.logFilePath, time + ": " + logLine + "\r\n");
   });
   try {
@@ -49,83 +51,246 @@ startup {
     System.IO.File.Create(vars.logFilePath);
     vars.log("Autosplitter loaded, log file created");
   }
+
+  // In case the splitter is loaded while a run is ongoing
+  vars.introCutscene = false;
+  vars.isLoading = null;
+  vars.currentWorld = "";
+
+  // Stored in translation_All.txt as TermDlg.Endings.GatesCommand
+  vars.eternalizeStrings = new List<string>{
+    "USER: /eternalize", // English, French, Japanese, Simplified Chinese, Traditional Chinese
+    "USER: /eternare", // Italian
+    "USER: /eternizar", // Spanish, Portuguese
+    "USER: /prenesi u vječnost", // Croatian
+    "USER: /uwiecznienie", // Polish
+    "USER: /verewigen", // German
+    "USER: /увековечить", // Russian
+    "USER: /영생 부여" // Korean
+  };
+
+  // Stored in translation_All.txt as TermDlg.Endings.Tower_Command
+  vars.transcendenceStrings = new List<string>{
+    "USER: /prijeđi", // Croatian
+    "USER: /transcend", // English, French, Japanese, Simplified Chinese, Traditional Chinese
+    "USER: /transcendencja", // Polish
+    "USER: /transcender", // Portuguese
+    "USER: /transcendere", // Italian
+    "USER: /transzendieren", // German
+    "USER: /trascender", // Spanish
+    "USER: /переступить", // Russian
+    "USER: /초월", // Korean
+  };
+
+  // Stored in translation_DLC_01_Road_To_Gehenna.txt
+  vars.gehennaVictory = new List<string>{
+    // TermDlg.DLC_18UploadTerminal.Ln0210.0.option.GoodLuckEveryone
+    "USER: Good luck everyone", // English
+    "USER: 各位祝你們好運", // Traditional Chinese
+    "USER: Bonne chance à tous", // French
+    "USER: Viel Glück", // German
+    "USER: Suerte a todos.", // Spanish
+    "USER: Всем удачи", // Russian
+    "USER: Buona fortuna a tutti", // Italian
+    "USER: Powodzenia wszystkim", // Polish
+    "USER: Hodně štěstí všem", // Czech
+    "USER: İyi şanslar millet", // Turkish
+    // TermDlg.DLC_18UploadTerminal.Ln0211.0.option.RememberMe
+    "USER: Remember me", // English
+    "USER: 不要忘了我", // Traditional Chinese
+    "USER: Ne m'oubliez pas", // French
+    "USER: Denkt an mich", // German
+    "USER: Recuérdame.", // Spanish
+    "USER: Помните меня", // Russian
+    "USER: Ricordatemi", // Italian
+    "USER: Pamiętajcie o mnie", // Polish
+    "USER: Pamatujte si na mě", // Czech
+    "USER: Beni unutmayın", // Turkish
+    // TermDlg.DLC_18UploadTerminal.Ln0212.0.option.ForgiveMe
+    "USER: Forgive me", // English
+    "USER: 原諒我", // Traditional Chinese
+    "USER: Pardonnez-moi", // French
+    "USER: Vergebt mir", // German
+    "USER: Perdóname.", // Spanish
+    "USER: Простите меня", // Russian
+    "USER: Perdonatemi", // Italian
+    "USER: Wybaczcie mi", // Polish
+    "USER: Odpusťte mi", // Czech
+    "USER: Beni affedin", // Turkish
+  };
+
+  vars.startRegex = new System.Text.RegularExpressions.Regex("^Started simulation on '(.*?)'");
+  // Level name, hasIntroCutscene
+  vars.knownStartingWorlds = new Dictionary<string, bool> {
+    {"Content/Talos/Levels/Cloud_1_01.wld", true}, // Talos
+    {"Content/Talos/Levels/DLC_01_Intro.wld", true}, // Gehenna
+    {"Content/Talos/Levels/Demo.wld", false}, // Demo
+    {"Content/Talos/Levels/Demo_Simple.wld", false}, // Short Demo
+    {"Content/Talos/Levels/Bonus_PrototypeLobby.wld", false}, // Prototype
+
+    {"Content/Talos/Levels/DATA_backup/DATA_backup.wld", false}, // Data Backup
+    {"Content/Talos/Levels/ExploitCollector/ExploitCollector.wld", false}, // Exploit Collector
+    {"Content/Talos/Levels/OnTopOfAll/OnTopOfAll.wld", false}, // On Top of All
+    {"Content/Talos/Levels/Only Puzzles 2/01-The Pyramid.wld", false}, // Only Puzzles 2
+    {"Content/Talos/Levels/Only Puzzles/Test1.wld", false}, // Only Puzzles
+    {"Content/Talos/Levels/Orbital/Orbital_Main.wld", false}, // Orbital
+    {"Content/Talos/Levels/query.wld", false}, // Query
+    {"Content/Talos/Levels/Limbo/Limbo.wld", false}, // Question Mark
+    {"Content/Talos/Levels/Rnm2/sky.wld", false}, // Ranamo Puzzles 2
+    {"Content/Talos/Levels/Ranamo/hub.wld", false}, // Ranamo Puzzles
+    {"Content/Talos/Levels/Randomizer/Cloud_1_01.wld", true}, // Randomizer
+    {"Content/Talos/Levels/Rebirth/Intro.wld", false}, // Rebirth
+    {"Content/Talos/Levels/Crystal/Room.wld", false}, // Schrodinger's Cat
+    {"Content/Talos/Levels/TutorialLevel/TutorialLevel.wld", false}, // Simple Tutorial Level
+    {"Content/Talos/Levels/Simplicity/Simplicity_Main.wld", false}, // Simplicity
+    {"Content/Talos/Levels/Xana/Episode1/Map01.wld", false}, // Sornukiz
+    {"Content/Talos/Levels/StepByStep/StepByStep.wld", false}, // Step By Step
+    {"Content/Experiments/World.wld", false}, // Strange Machine in Medieval
+    {"Content/Talos/Levels/The Day After/Intro.wld", false}, // The Day After
+    {"Content/Talos/Levels/JP_TheFlood/JPTF1.wld", false}, // The Flood
+    {"Content/Talos/Levels/TFD/TFD_01.wld", false}, // The Fourth Dimension
+    {"Content/Talos/Levels/Z_HolyDays/HD_Cloud_Xmas.wld", false}, // The Holy Days
+    {"Content/Talos/Levels/TheOnlyPuzzle/TheOnlyPuzzle_00.wld", false} // This is The Only Puzzle
+  };
 }
 
 init {
   var page = modules.First();
   var gameDir = Path.GetDirectoryName(page.FileName);
-  var scanner = new SignatureScanner(game, page.BaseAddress, page.ModuleMemorySize);
-  var ptr = IntPtr.Zero;
-  vars.foundPointers = false;
+  var index = gameDir.IndexOf("The Talos Principle");
+  var logPath = gameDir.Substring(0, index + 22) + "/Log/" + game.ProcessName + ".log";
+  vars.log("Computed log path: '" + logPath + "'");
 
-  string logPath;
-  if (game.Is64Bit()) {
-    logPath = gameDir.TrimEnd("\\Bin\\x64".ToCharArray());
-  } else {
-    logPath = gameDir.TrimEnd("\\Bin".ToCharArray());
+  // To find the loading pointer:
+  // (x64) AOB scan (non-writable) for 48 85 C9 74 1E 48 8B 01 FF 50 60
+  // (x86) AOB scan (non-writable) for C7 86 74010000 01000000 85 C9
+  // Start a new game.
+  // Set a breakpoint on the line with mov [***], 00000001
+  // Add Address for ESI (x86) or RCX (x64)
+  // Pointer scan for that address
+  // Sort by Offset 4
+  // Find the Talos.exe+??? which has offsets 8, 0 (x86) or 10, 0 (x64)
+  // That ??? is the base value for the loading pointer. Other offsets are unchanged.
+  // Moddable base values have always been exactly 0x3000 less so far, best to check again just in case though
+
+  vars.cheatFlags = null;
+  vars.isLoading = null;
+  switch (page.ModuleMemorySize) {
+    case 41943040 :
+      version = "440323 x64";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x1E1CB88));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x1DFD450, 0x10, 0x1F8));
+      break;
+    case 41930752:
+      version = "429074 x64";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x1E19B38));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x1DFD450, 0x10, 0x1F8));
+      break;
+    case 35561472:
+      version = "326589 x64";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x17C3670));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x17981D0, 0x10, 0x208));
+      break;
+    case 34160640:
+      version = "301136 x64";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x1673BC0));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x16488F0, 0x10, 0x208));
+      break;
+    case 24354816 :
+      version = "252786 x64";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x1507868));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x14FF960, 0x10, 0x208));
+      break;
+
+    case 24506368:
+      version = "326589 x86";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x1273F48));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x12540E8, 0x8, 0x1C8));
+      break;
+    case 23699456:
+      version = "301136 x86";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11AF758));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x118FA48, 0x8, 0x1C8));
+      break;
+    case 19664896:
+      version = "252786 x86";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11C6884));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x11C09C4, 0x8, 0x1C8));
+      break;
+    case 19648512:
+      version = "248828 x86";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11C28A4));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x11BC9E4, 0x8, 0x1C8));
+      break;
+    case 19599360:
+      version = "243520/244371 x86";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11B7724));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x11B1864, 0x8, 0x1C8));
+      break;
+    case 19681280:
+      version = "226087 x86";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11CC724));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x11C6B44, 0x8, 0x1C8));
+      break;
+
+    case 35549184:
+      version = "326589 x64 Moddable";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x17C0670));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x17951D0, 0x10, 0x208));
+      break;
+    case 34148352:
+      version = "301136 x64 Moddable";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x1673BC0));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x16458F0, 0x10, 0x208));
+      break;
+    case 24334336:
+      version = "252786 x64 Moddable";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x1502848));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x14FA940, 0x10, 0x208));
+      break;
+
+    case 24494080:
+      version = "326589 x86 Moddable";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x1270F48));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x12510E8, 0x8, 0x1C8));
+      break;
+    case 23687168:
+      version = "301136 x86 Moddable";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11AC758));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x118CA48, 0x8, 0x1C8));
+      break;
+    case 19652608:
+      version = "252786 x86 Moddable";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11C3884));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x11BD9C4, 0x8, 0x1C8));
+      break;
+    case 19636224:
+      version = "248828 x86 Moddable";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11BF8A4));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x11B99E4, 0x8, 0x1C8));
+      break;
+    case 19587072:
+      version = "243520/244371 x86 Moddable";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11B4724));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x11AE864, 0x8, 0x1C8));
+      break;
+    case 19668992:
+      version = "226087 x86 Moddable";
+      vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11C9724));
+      vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x11C3B44, 0x8, 0x1C8));
+      break;
+	  
+	case 41984000:
+	  version = "443779 x64 VR";
+	  vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x1E185D0, 0x8, 0x1C8));
+	  break;
+
+    default:
+      version = "Unknown";
+      vars.log("ModuleMemorySize = " + modules.First().ModuleMemorySize);
+      break;
   }
-  logPath += "\\Log\\" + game.ProcessName + ".log";
-  vars.log("Using log path: '" + logPath + "'");
-
-  if (game.Is64Bit()) {
-    ptr = scanner.Scan(new SigScanTarget(4, // Targeting byte 3
-      "75 0C 8B 05 ????????", // cmp [Talos.exe+target], r12d
-      "48 83 C4 20"           // mov rdi, rcx
-    ));
-    if (ptr == IntPtr.Zero) {
-      vars.log("Could not find x64 cheatFlags!");
-      return false;
-    }
-    int relativePosition = (int)((long)ptr - (long)page.BaseAddress) + 4;
-    vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(
-      game.ReadValue<int>(ptr) + relativePosition
-    ));
-
-    ptr = scanner.Scan(new SigScanTarget(3, // Targeting byte 3
-      "48 8B 0D ????????", // mov rcx, [Talos.exe+offset]
-      "48 8B 11",          // mov rdx, [rcx]
-      "FF 92 B0000000"     // call qword ptr [rdx+B0]
-    ));
-    if (ptr == IntPtr.Zero) {
-      vars.log("Could not find x64 isLoading!");
-      return false;
-    }
-    relativePosition = (int)((long)ptr - (long)page.BaseAddress) + 4;
-    vars.isLoading = new MemoryWatcher<int>(new DeepPointer(
-      game.ReadValue<int>(ptr) + relativePosition,
-      0x10, 0x208 // Doesn't seem to change
-    ));
-  } else { // game.Is64Bit() == false
-    ptr = scanner.Scan(new SigScanTarget(3, // Targeting byte 3
-      "75 08",       // jne 8
-      "A1 ????????", // mov eax, [Talos.exe+target]
-      "5E"           // pop esi
-    ));
-    if (ptr == IntPtr.Zero) {
-      vars.log("Could not find x86 cheatFlags!");
-      return false;
-    }
-    vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(
-      game.ReadValue<int>(ptr) - (int)page.BaseAddress
-    ));
-
-    ptr = scanner.Scan(new SigScanTarget(2, // Taregetting byte 2
-      "8B 0D ????????", // mov ecx,[Talos.exe+target]
-      "8B 11",          // mov edx,[ecx]
-      "FF 52 58"        // call dword ptr [edx+58]
-    ));
-    if (ptr == IntPtr.Zero) {
-      vars.log("Could not find x86 isLoading!");
-      return false;
-    }
-    vars.isLoading = new MemoryWatcher<int>(new DeepPointer(
-      game.ReadValue<int>(ptr) - (int)page.BaseAddress,
-      0x08, 0x1C8 // Doesn't seem to change
-    ));
-    // x86 settings change pointer:
-    // 5E 5D C2 0400 C7 05 ???????? 01000000
-  }
-  vars.foundPointers = true;
+  vars.log("Using game version: " + version);
 
   try { // Wipe the log file to clear out messages from last time
     FileStream fs = new FileStream(logPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
@@ -137,63 +302,56 @@ init {
 
 exit {
   timer.IsGameTimePaused = true;
+  vars.reader = null; // Free the lock on the talos logfile, so folders can be renamed/etc
 }
 
 update {
-  if (vars.foundPointers == null) return false;
-  vars.line = vars.reader.ReadLine();
-  if (vars.line == null) return false; // If no line was read, don't run any other blocks.
+  while (true) {
+    vars.line = vars.reader.ReadLine();
+    if (vars.line == null || vars.line.Length < 16) return false; // If no line was read, don't run any other blocks.
+    if (vars.line.Substring(9, 3) == "ERR") continue; // Filter out error-level logging, as it can be spammy when bots get stuck
+    break;
+  }
   vars.line = vars.line.Substring(16); // Removes the date and log level from the line
 
-  vars.cheatFlags.Update(game);
-  vars.isLoading.Update(game);
+  if (vars.cheatFlags != null) {vars.cheatFlags.Update(game);}
+  if (vars.isLoading != null) {vars.isLoading.Update(game);}
 }
 
 start {
-  if (vars.cheatFlags.Current != 0) {
-    vars.log("Cheats are currently active: " + vars.cheatFlags.Current);
-    if (settings["Don't start the run if cheats are active"]) {
-      vars.log("Not starting the run because of cheats");
+  var match = vars.startRegex.Match(vars.line);
+  if (match.Success) {
+    var world = match.Groups[1].Value;
+    // Main menu and settings count as 'worlds', ignore them
+    if (world.Contains("Menu")) return false;
+
+    if (vars.cheatFlags != null && vars.cheatFlags.Current != 0) {
+      vars.log("Cheats are currently active: " + vars.cheatFlags.Current);
+      if (settings["Don't start the run if cheats are active"]) {
+        vars.log("Not starting the run because of cheats");
+        return false;
+      }
+    }
+
+    if (vars.knownStartingWorlds.ContainsKey(world)) {
+      vars.introCutscene = vars.knownStartingWorlds[world];
+    } else if (!settings["Start the run in any world"]) {
       return false;
     }
-  }
-  Action<string> startGame = (string world) => {
+    vars.log("Started a new run in " + world);
+
     vars.currentWorld = world;
     vars.lastSigil = "";
-    vars.lastLines = 0;
     vars.graySigils = 0;
-    vars.adminEnding = false;
-    vars.introCutscene = true;
     timer.IsGameTimePaused = true;
-  };
-
-  // Only start for A1 / Gehenna Intro, since restore backup / continue should mostly be on other worlds.
-  if (vars.line.StartsWith("Started simulation on") && vars.line.Contains("Cloud_1_01.wld")) {
-    vars.log("Started a new Talos run in A1");
-    startGame("Content/Talos/Levels/Cloud_1_01.wld");
-    return true;
-  }
-
-  if (vars.line.StartsWith("Started simulation on") && vars.line.Contains("DLC_01_Intro.wld'")) {
-    vars.log("Started a new Gehenna run in DLC_01");
-    startGame("Content/Talos/Levels/DLC_01_Intro.wld");
-    return true;
-  }
-
-  if (settings["Start the run in any world"] &&
-    vars.line.StartsWith("Started simulation on '") && !vars.line.Contains("Menu")) {
-    vars.log("Started a new run from a non-normal starting world:");
-    vars.log(vars.line);
-    startGame("[Initial World]"); // Not parsing this because it's hard
-    vars.introCutscene = false; // Don't wait for an intro cutscene for custom starts
     return true;
   }
 }
 
 reset {
-  if (vars.line == "Saving talos progress upon game stop.") {
+  if (vars.line == "Saving talos progress upon game stop." || vars.line == "Saving game progress upon game stop.") {
     vars.log("Stopped run because the game was stopped.");
-    return true; // Unique line vars.loged only when you stop the game
+    return true; // Unique line printed only when you stop the game
   }
 }
 
@@ -205,7 +363,7 @@ isLoading {
   // Pause the timer during the intro cutscene
   if (vars.introCutscene) return true;
   // Game is loading (restart checkpoint, level transition)
-  if (vars.isLoading.Current != 0) return true;
+  if (vars.isLoading != null && vars.isLoading.Current != 0) return true;
   return false;
 }
 
@@ -213,9 +371,10 @@ split {
   if (vars.line.StartsWith("Changing over to")) { // Map changes
     var mapName = vars.line.Substring(17);
     if (mapName == vars.currentWorld) {
+      vars.log("Restarted checkpoint in world " + vars.currentWorld);
       return false; // Ensure 'restart checkpoint' doesn't trigger map change
     }
-    vars.log("Changed worlds from "+vars.currentWorld+" to "+mapName);
+    vars.log("Changed worlds from " + vars.currentWorld + " to " + mapName);
     vars.currentWorld = mapName;
     if (settings["Split on return to Nexus or DLC Hub"] &&
       (mapName.EndsWith("Nexus.wld") ||
@@ -226,14 +385,24 @@ split {
       return true;
     }
   }
-  if (vars.line.StartsWith("Picked:")) { // Sigil/Robot and star collection
-    var sigil = vars.line.Substring(8);
-    if (sigil == vars.lastSigil) {
-      return false; // DLC Double-split prevention
-    } else {
-      vars.lastSigil = sigil;
-    }
+
+  // Sigil, robot, and star collection
+  string sigil = null;
+  if (vars.line.StartsWith("Backup and Save Talos Progress: tetromino")) {
+    sigil = vars.line.Substring(43, 4);
+  } else if (vars.line.StartsWith("Tetromino ")) {
+    sigil = vars.line.Substring(10, 4);
+  }
+
+  if (sigil != null) {
+    vars.log("NinjaBug 7/8/2019: " + vars.line + " " + sigil);
+    vars.log("\t" + vars.lastSigil);
+  }
+
+  if (sigil != null && sigil != vars.lastSigil) {
+    vars.lastSigil = sigil;
     vars.log("Collected sigil " + sigil + " in world " + vars.currentWorld);
+
     if (settings["worldsplits-A4"] && vars.currentWorld.EndsWith("Cloud_1_04.wld")) {
       vars.log("Not splitting for a collection in A4, per setting.");
       return false;
@@ -301,11 +470,7 @@ split {
     if (puzzle.StartsWith("AlternativeEding")) {
       return settings["Split on the Nexus gray Floor 6 door"];
     }
-    if (puzzle.StartsWith("DLC_01_Secret")) {
-      return settings["(Custom/DLC) Split when solving any arranger"];
-    }
-    if (puzzle.StartsWith("DLC_01_Hub")) {
-      vars.adminEnding = true; // Admin puzzle door solved, so the Admin is saved.
+    if (puzzle.StartsWith("DLC_01_Secret") || puzzle.StartsWith("DLC_01_Hub")) {
       return settings["(Custom/DLC) Split when solving any arranger"];
     }
     // If it's not one of the main game/DLC strings, then it must be a custom campaign
@@ -318,7 +483,8 @@ split {
     return settings["Split on exiting any terminal"];
   }
   if (vars.currentWorld.EndsWith("Islands_03.wld")) {
-    if (vars.line.StartsWith("USER:")) { // Line differs in languages, not the prefix
+    // There are various "tombstone messages", so consider any message as ending the run
+    if (vars.line.StartsWith("USER:")) {
       vars.log("Game completed via Messenger ending.");
       return true;
     }
@@ -328,28 +494,19 @@ split {
       vars.log("User exits floor 5 and starts ascending the tower");
       return settings["Split when exiting Floor 5"];
     }
-    if (vars.line == "USER: /transcend") {
+    if (vars.transcendenceStrings.Contains(vars.line)) {
       vars.log("Game completed via Transcendence ending.");
       return true;
     }
-    if (vars.line == "USER: /eternalize") {
+    if (vars.eternalizeStrings.Contains(vars.line)) {
       vars.log("Game completed via Eternalize ending.");
       return true;
     }
   }
   if (vars.currentWorld.EndsWith("DLC_01_Hub.wld")) {
-    if (vars.line == "Save Talos Progress: entered terminal") {
-      vars.lastLines = 0;
-    }
-    if (vars.line.StartsWith("USER:")) {
-      vars.lastLines++;
-      if (vars.adminEnding) {
-        // If admin is saved, it takes 5 lines to end the game
-        return (vars.lastLines == 5);
-      } else {
-        // In all other endings, game ends on the 4th dialogue
-        return (vars.lastLines == 4);
-      }
+    if (vars.gehennaVictory.Contains(vars.line)) {
+      vars.log("Gehenna game completed.");
+      return true;
     }
   }
 }
