@@ -158,12 +158,12 @@ init {
   var page = modules.First();
   var gameDir = Path.GetDirectoryName(page.FileName);
   var index = gameDir.IndexOf("The Talos Principle");
-  var logPath = gameDir.Substring(0, index + 19) + "/Log/" + game.ProcessName + ".log";
+  var logPath = gameDir.Substring(0, index + 22) + "/Log/" + game.ProcessName + ".log";
   vars.log("Computed log path: '" + logPath + "'");
 
   // To find the loading pointer:
-  // (x64) AOB scan for 48 85 C9 74 1E 48 8B 01 FF 50 60
-  // (x86) AOB scan for C7 86 74010000 01000000 85 C9
+  // (x64) AOB scan (non-writable) for 48 85 C9 74 1E 48 8B 01 FF 50 60
+  // (x86) AOB scan (non-writable) for C7 86 74010000 01000000 85 C9
   // Start a new game.
   // Set a breakpoint on the line with mov [***], 00000001
   // Add Address for ESI (x86) or RCX (x64)
@@ -279,6 +279,11 @@ init {
       vars.cheatFlags = new MemoryWatcher<int>(new DeepPointer(0x11C9724));
       vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x11C3B44, 0x8, 0x1C8));
       break;
+	  
+	case 41984000:
+	  version = "443779 x64 VR";
+	  vars.isLoading = new MemoryWatcher<int>(new DeepPointer(0x1E185D0, 0x8, 0x1C8));
+	  break;
 
     default:
       version = "Unknown";
@@ -344,7 +349,7 @@ start {
 }
 
 reset {
-  if (vars.line == "Saving talos progress upon game stop.") {
+  if (vars.line == "Saving talos progress upon game stop." || vars.line == "Saving game progress upon game stop.") {
     vars.log("Stopped run because the game was stopped.");
     return true; // Unique line printed only when you stop the game
   }
